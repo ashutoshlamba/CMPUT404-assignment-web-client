@@ -33,7 +33,18 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
+    def get_host_port_path(self,url):
+        parsed = urllib.parse.urlparse(url)
+        if parsed:
+            port = parsed.port
+            path = parsed.path
+            if not path:
+                path = "/"
+            if not port:
+                port = 80
+        return parsed.hostname, port, path
+                
+        
 
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,13 +52,13 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        return int(data.split()[1])
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[-1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -66,15 +77,39 @@ class HTTPClient(object):
             else:
                 done = not part
         return buffer.decode('utf-8')
-
+# https://www.w3schools.com/tags/ref_httpmethods.asp
     def GET(self, url, args=None):
         code = 500
         body = ""
+        host, port, path = self.get_host_port_path(url)
+        get_request = "GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent:Linux\r\nConnection:close\r\n\r\n"
+        self.connect(host, port)
+        self.sendall(get_request)
+        get_response = self.recvall(self.socket)
+        self.close()
+        code = self.get_code(get_response)
+        body = self.get_body(get_response)
+        print(code)
+        print(body)
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
         code = 500
         body = ""
+        host, port, path = self.get_host_port_path(url)
+        if(args):
+            args = urllib.parse.urlencode(args)
+            post_request = "POST "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent:Linux\r\nContent-Length: "+str(len(args))+"\r\nContent-Type:  application/x-www-form-urlencoded\r\nConnection:close\r\n\r\n"+args
+        else:
+            post_request = "POST "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent:Linux\r\nContent-Length: "+"0"+"\r\nContent-Type:  application/x-www-form-urlencoded\r\nConnection:close\r\n\r\n"
+        self.connect(host, port)
+        self.sendall(post_request)
+        post_response = self.recvall(self.socket)
+        self.close()
+        code = self.get_code(post_response)
+        body = self.get_body(post_response)
+        print(code)
+        print(body)
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
